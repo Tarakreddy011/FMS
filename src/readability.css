@@ -1,0 +1,91 @@
+.sidebar {
+  width: 270px;
+}
+
+.main-area {
+  margin-left: 270px;
+}
+
+.workspace-label,
+.eyebrow {
+  font-size: 11px;
+}
+
+.side-link {
+  min-height: 46px;
+  font-size: 15px;
+}
+
+.secure-note {
+  font-size: 12px;
+}
+
+.profile-info strong {
+  font-size: 12px;
+}
+
+.profile-info small {
+  font-size: 11px;
+}
+
+.topbar > div {
+  font-size: 11px;
+}
+
+.metric-label,
+.metric small,
+.count-label,
+.cell-sub,
+.text-button {
+  font-size: 12px;
+}
+
+.metric strong {
+  font-size: 21px;
+}
+
+table {
+  font-size: 13px;
+}
+
+th {
+  font-size: 11px;
+}
+
+td {
+  font-size: 13px;
+}
+
+.search-field input,
+.table-select {
+  font-size: 13px;
+}
+
+.button,
+.select-button,
+.quick-link {
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    width: auto;
+  }
+
+  .main-area {
+    margin-left: 0;
+  }
+
+  .side-nav {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .side-link {
+    flex: 0 0 auto;
+    font-size: 12px;
+    padding: 9px 10px;
+    white-space: nowrap;
+  }
+}
