@@ -7,7 +7,7 @@ export function storedCredentials() {
 export async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const credentials = storedCredentials();
-  if (credentials) headers.set('Authorization', `Basic ${credentials}`);
+  if (credentials && !headers.has('Authorization')) headers.set('Authorization', `Basic ${credentials}`);
   if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   const response = await fetch(`${API_BASE}${path}`, {

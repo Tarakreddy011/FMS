@@ -25,11 +25,9 @@ function App() {
 
   async function signIn(username, password) {
     const credentials = btoa(`${username}:${password}`);
-    const response = await fetch(`${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/auth/login`, {
+    const data = await api('/api/auth/login', {
       headers: { Authorization: `Basic ${credentials}` }
     });
-    if (!response.ok) throw new Error('Sign-in failed. Check your username and password.');
-    const data = await response.json();
     sessionStorage.setItem('fms_credentials', credentials);
     sessionStorage.setItem('fms_role', data.role || 'ADMIN');
     sessionStorage.setItem('fms_roles', JSON.stringify(data.roles || []));

@@ -1,10 +1,10 @@
-# PayMyFee Frontend
+# PayMyFee React Frontend
 
-Standalone React + Vite client for the existing Spring Boot fee-management API. This project is intended to be maintained and published independently from the backend repository.
+This repository contains the full React + Vite user interface. The Spring Boot API is maintained separately in [FeeManagementSystem](https://github.com/Tarakreddy011/FeeManagementSystem); it owns authentication, authorization, business rules, and database access. No legacy portal UI is served by the backend.
 
-## Local development
+## Local Development
 
-Prerequisites: Node.js 20.19+ or 22.12+ and a running backend on port 8080.
+Prerequisites: Node.js 20.19+ or 22.12+, plus the backend running at `http://localhost:8080` with the MySQL `paymyfee` schema configured.
 
 ```powershell
 Copy-Item .env.example .env
@@ -12,17 +12,22 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. Set `VITE_API_BASE_URL` in `.env` if the backend uses another local URL. The backend's database settings are read from `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`; configure those in the backend environment.
+Open <http://localhost:5173>. `VITE_API_BASE_URL` selects the backend origin and defaults to `http://localhost:8080`. All frontend requests, including login, go through the shared API client in `src/api.js`. The backend must allow the frontend origin; local CORS defaults to `http://localhost:5173` and can be overridden with `FRONTEND_ORIGIN`.
 
-The frontend calls the existing endpoints directly and uses the existing HTTP Basic login flow. Credentials are held in `sessionStorage` to match the current application. This is a local migration baseline, not a recommended public-production authentication design.
+The backend reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`; configure the password outside source control. The current UI retains the existing HTTP Basic flow and stores encoded credentials in `sessionStorage`; this is not a production-ready authentication design.
 
-## Separate GitHub repository
+## Backend Fallback Pages
 
-This folder is outside the backend repository, has its own `.gitignore`, and is already initialized as a separate local Git repository. To publish it independently, create an empty GitHub repository for it, add that repository as `origin`, then commit and push. The backend remains in `FeeManagementSystem` and keeps its existing GitHub remote; no remote has been added and nothing has been pushed.
+If the backend root (`http://localhost:8080`) is opened, it shows a small fallback page linking to the React client. `/api-status.html` provides a simple API reachability check. These pages are diagnostic only; all user workflows belong to this React application.
 
-## Features
+## Build
 
-- Role-aware login and navigation for student, teacher, and admin users.
-- Student profile, fee balance, payment submission, and receipt history.
-- Teacher profile, assigned students, institution roster, and fee adjustment.
-- Principal metrics, mentor assignment, fee adjustments, faculty workload, faculty onboarding/removal, and recent transactions.
+```powershell
+npm run build
+```
+
+## Main Workflows
+
+- Student: profile, balance, payment, and receipt history.
+- Teacher: assigned cohort, student roster, and fee updates.
+- Principal: dashboard metrics, mentor assignment, fee ledger, faculty management, and transactions.
