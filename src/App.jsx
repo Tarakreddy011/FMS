@@ -11,6 +11,7 @@ const roleHome = (role) => role === 'STUDENT' ? '/student' : role === 'TEACHER' 
 const readUser = () => {
   try { return JSON.parse(sessionStorage.getItem('fms_user') || 'null'); } catch { return null; }
 };
+const navigateWorkspace = (label) => window.dispatchEvent(new CustomEvent('paymyfee:navigate', { detail: label }));
 
 function App() {
   const [user, setUser] = useState(readUser);
@@ -66,15 +67,20 @@ function Shell({ user, onSignOut, children }) {
     ? [{ label: 'My account', icon: UserRound }]
     : role === 'TEACHER'
       ? [{ label: 'My cohort', icon: Users }, { label: 'Student roster', icon: GraduationCap }]
-      : [{ label: 'Overview', icon: LayoutDashboard }, { label: 'Mentor roster', icon: Users }, { label: 'Fee ledger', icon: WalletCards }, { label: 'Faculty', icon: BookOpenCheck }, { label: 'Transactions', icon: CreditCard }];
+      : [{ label: 'Overview', icon: LayoutDashboard }, { label: 'Students', icon: GraduationCap }, { label: 'Mentor roster', icon: Users }, { label: 'Fee ledger', icon: WalletCards }, { label: 'Faculty', icon: BookOpenCheck }, { label: 'Transactions', icon: CreditCard }];
   const [active, setActive] = useState(nav[0]?.label || 'Overview');
+  useEffect(() => {
+    const handleNavigation = (event) => setActive(event.detail);
+    window.addEventListener('paymyfee:navigate', handleNavigation);
+    return () => window.removeEventListener('paymyfee:navigate', handleNavigation);
+  }, []);
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" to={roleHome(role)}><span className="brand-mark"><BadgeIndianRupee size={21} /></span><span>PayMyFee<small>INSTITUTIONAL FINANCE</small></span></Link>
         <div className="workspace-label">WORKSPACE</div>
         <nav className="side-nav">
-          {nav.map(({ label, icon: Icon }) => <button key={label} className={active === label ? 'side-link active' : 'side-link'} onClick={() => { setActive(label); window.dispatchEvent(new CustomEvent('paymyfee:navigate', { detail: label })); document.getElementById(label.replaceAll(' ', '-').toLowerCase())?.scrollIntoView({ behavior: 'smooth' }); }}><Icon size={17} />{label}</button>)}
+          {nav.map(({ label, icon: Icon }) => <button key={label} className={active === label ? 'side-link active' : 'side-link'} onClick={() => { navigateWorkspace(label); const target = label === 'Student roster' ? 'student-enrollment' : label.replaceAll(' ', '-').toLowerCase(); window.requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' })); }}><Icon size={17} />{label}</button>)}
         </nav>
         <div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={16} /><span>Protected workspace</span></div><div className="profile-chip"><span className="avatar">{(user.displayName || 'U').slice(0, 1).toUpperCase()}</span><span className="profile-info"><strong>{user.displayName || user.username}</strong><small>{role === 'ADMIN' ? 'Administrator' : role.toLowerCase()}</small></span><button aria-label="Sign out" title="Sign out" onClick={onSignOut}><LogOut size={17} /></button></div></div>
       </aside>
@@ -151,17 +157,25 @@ function TeacherPortal() {
   }
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    const sectionByLabel = { Overview: 'overview', 'Mentor roster': 'mentors', 'Fee ledger': 'fees', Faculty: 'faculty', Transactions: 'transactions' };
-    const handleNavigation = (event) => setTab(sectionByLabel[event.detail] || 'overview');
+    const sectionByLabel = { 'My cohort': 'cohort', 'Student roster': 'roster' };
+    const handleNavigation = (event) => {
+      if (sectionByLabel[event.detail]) setTab(sectionByLabel[event.detail]);
+    };
     window.addEventListener('paymyfee:navigate', handleNavigation);
     return () => window.removeEventListener('paymyfee:navigate', handleNavigation);
   }, []);
   async function updateFee(student, value) {
-    try { await api(`/teacherupdate/student/${student.studentid}/fee`, { method: 'POST', body: jsonBody({ studentid: student.studentid, teacherid: teacher?.teacherid, studentname: student.studentname, email: student.email, feebalance: Number(value) }) }); setNotice(`Balance updated for ${student.studentname}.`); await load(); }
+    try { await api(`/teacherupdate/student/${student.studentid}/fee`, { method: 'POST', body: jsonBody({ studentid: student.studentid, studentname: student.studentname, email: student.email, feebalance: Number(value) }) }); setNotice(`Balance updated for ${student.studentname}.`); await load(); }
     catch (problem) { setError(problem.message); }
   }
   const shown = (tab === 'cohort' ? students : allStudents).filter(s => `${s.studentname} ${s.email} ${s.studentid}`.toLowerCase().includes(query.toLowerCase()));
-  return <div id="my-cohort"><PageHeading eyebrow="FACULTY WORKSPACE" title={`Hello, ${teacher?.teachername?.split(' ')[0] || 'faculty'}`} detail="Review your mentee cohort and current fee balances." action={<button className="button outline" onClick={load}><RefreshCw size={15} />Refresh</button>} /><LoadState error={error} retry={load} />{notice && <div className="notice success"><Check size={16} />{notice}</div>}<div className="metrics-row"><Metric label="Assigned students" value={students.length} note="Your mentor cohort" icon={Users} /><Metric label="Cohort outstanding" value={money(students.reduce((sum, item) => sum + Number(item.feebalance || 0), 0))} note="Across assigned students" icon={WalletCards} tone="amber" /><Metric label="Faculty ID" value={teacher?.teacherid ? `#${teacher.teacherid}` : '—'} note={teacher?.email || 'Account profile'} icon={UserRound} tone="ink" /></div><section id="student-roster" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STUDENT RECORDS</span><h2>{tab === 'cohort' ? 'My assigned cohort' : 'Institution roster'}</h2></div><div className="panel-tools"><div className="search-field"><Search size={15} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search student" /></div><button className="select-button" onClick={() => setTab(tab === 'cohort' ? 'roster' : 'cohort')}>{tab === 'cohort' ? 'All students' : 'My cohort'}<ChevronDown size={14} /></button></div></div><StudentTable students={shown} canEdit onUpdate={updateFee} /></section></div>;
+  async function onStudentCreated() {
+    setNotice('Student registered and added to your cohort.');
+    setTab('roster');
+    navigateWorkspace('Student roster');
+    await load();
+  }
+  return <div id="my-cohort"><PageHeading eyebrow="FACULTY WORKSPACE" title={`Hello, ${teacher?.teachername?.split(' ')[0] || 'faculty'}`} detail="Manage your student roster, assigned cohort, and fee balances." action={<button className="button outline" onClick={load}><RefreshCw size={15} />Refresh</button>} /><LoadState error={error} retry={load} />{notice && <div className="notice success"><Check size={16} />{notice}</div>}<div className="metrics-row"><Metric label="Assigned students" value={students.length} note="Your mentor cohort" icon={Users} /><Metric label="Cohort outstanding" value={money(students.reduce((sum, item) => sum + Number(item.feebalance || 0), 0))} note="Across assigned students" icon={WalletCards} tone="amber" /><Metric label="Faculty ID" value={teacher?.teacherid ? `#${teacher.teacherid}` : '—'} note={teacher?.email || 'Account profile'} icon={UserRound} tone="ink" /></div>{tab === 'roster' && <section id="student-enrollment" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">NEW ENROLMENT</span><h2>Add a student to your cohort</h2></div><span className="count-label">Initial fee required</span></div><StudentEnrollmentForm endpoint="/teachers/addstudent" assignedToTeacher onCreated={onStudentCreated} /></section>}<section id="student-roster" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STUDENT RECORDS</span><h2>{tab === 'cohort' ? 'My assigned cohort' : 'Institution roster'}</h2></div><div className="panel-tools"><div className="search-field"><Search size={15} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search student" /></div><button className="select-button" onClick={() => { const next = tab === 'cohort' ? 'roster' : 'cohort'; setTab(next); navigateWorkspace(next === 'cohort' ? 'My cohort' : 'Student roster'); }}>{tab === 'cohort' ? 'All students' : 'My cohort'}<ChevronDown size={14} /></button></div></div><StudentTable students={shown} canEdit onUpdate={updateFee} /></section></div>;
 }
 
 function StudentTable({ students, canEdit = false, onUpdate }) {
@@ -171,6 +185,49 @@ function StudentTable({ students, canEdit = false, onUpdate }) {
 function FeeEditor({ student, onUpdate }) {
   const [value, setValue] = useState(String(student.feebalance || 0));
   return <form className="inline-edit" onSubmit={event => { event.preventDefault(); onUpdate(student, value); }}><input aria-label="New fee balance" type="number" min="0" step="0.01" value={value} onChange={event => setValue(event.target.value)} /><button className="icon-button" title="Save balance" aria-label="Save balance"><Check size={15} /></button></form>;
+}
+
+function StudentEnrollmentForm({ endpoint, teachers = [], assignedToTeacher = false, onCreated }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    const student = {
+      studentname: data.studentname,
+      fathername: data.fathername,
+      email: data.email,
+      birthdate: data.birthdate,
+      feebalance: Number(data.feebalance)
+    };
+    if (!assignedToTeacher) student.teacherId = Number(data.teacherId) || null;
+
+    setError('');
+    setBusy(true);
+    try {
+      await api(endpoint, { method: 'POST', body: jsonBody(student) });
+      form.reset();
+      await onCreated();
+    } catch (problem) {
+      setError(problem.message || 'Could not register the student.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <form className="add-student-form" onSubmit={submit}>
+    <label>Student name<input name="studentname" autoComplete="name" required /></label>
+    <label>Parent / guardian<input name="fathername" required /></label>
+    <label>Email<input type="email" name="email" autoComplete="email" required /></label>
+    <label>Date of birth<input type="date" name="birthdate" required /></label>
+    <label>Initial fee due<input type="number" name="feebalance" min="0.01" step="0.01" required /></label>
+    {!assignedToTeacher && <label>Assign mentor<select name="teacherId" defaultValue=""><option value="">Unassigned</option>{teachers.map(teacher => <option key={teacher.teacherid} value={teacher.teacherid}>{teacher.teachername}</option>)}</select></label>}
+    {assignedToTeacher && <p className="form-hint">The student will be assigned to your mentor cohort. Their sign-in password will be generated from their date of birth.</p>}
+    {error && <div className="notice error"><CircleAlert size={16} />{error}</div>}
+    <button className="button primary" disabled={busy}>{busy ? 'Registering...' : <>Register student <ArrowRight size={16} /></>}</button>
+  </form>;
 }
 
 function PrincipalPortal() {
@@ -200,8 +257,10 @@ function PrincipalPortal() {
   }
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    const sectionByLabel = { Overview: 'overview', 'Mentor roster': 'mentors', 'Fee ledger': 'fees', Faculty: 'faculty', Transactions: 'transactions' };
-    const handleNavigation = (event) => setTab(sectionByLabel[event.detail] || 'overview');
+    const sectionByLabel = { Overview: 'overview', Students: 'students', 'Mentor roster': 'mentors', 'Fee ledger': 'fees', Faculty: 'faculty', Transactions: 'transactions' };
+    const handleNavigation = (event) => {
+      if (sectionByLabel[event.detail]) setTab(sectionByLabel[event.detail]);
+    };
     window.addEventListener('paymyfee:navigate', handleNavigation);
     return () => window.removeEventListener('paymyfee:navigate', handleNavigation);
   }, []);
@@ -214,8 +273,8 @@ function PrincipalPortal() {
     catch (problem) { setError(problem.message); }
   }
   async function addTeacher(event) {
-    event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget));
-    try { await api('/teachers/addteacher', { method: 'POST', body: jsonBody({ teachername: data.teachername, email: data.email, phone: Number(data.phone), birthdate: data.birthdate }) }); setNotice('Faculty member registered.'); event.currentTarget.reset(); await load(); }
+    event.preventDefault(); const form = event.currentTarget; const data = Object.fromEntries(new FormData(form));
+    try { await api('/teachers/addteacher', { method: 'POST', body: jsonBody({ teachername: data.teachername, email: data.email, phone: data.phone, birthdate: data.birthdate }) }); setNotice('Faculty member registered.'); form.reset(); await load(); }
     catch (problem) { setError(problem.message); }
   }
   async function deleteTeacher(id) {
@@ -223,14 +282,19 @@ function PrincipalPortal() {
     try { await api(`/teachers/deleteteacher/${id}`, { method: 'DELETE' }); setNotice(`Faculty member #${id} removed.`); await load(); }
     catch (problem) { setError(problem.message); }
   }
+  async function onStudentCreated() {
+    setNotice('Student enrolled with the initial fee balance.');
+    await load();
+  }
   const filteredRelationships = relationships.filter(item => (!unassigned || !item.isAssigned) && `${item.studentName} ${item.teacherName} ${item.studentId}`.toLowerCase().includes(query.toLowerCase()));
   const filteredStudents = students.filter(item => `${item.studentname} ${item.studentid} ${item.email}`.toLowerCase().includes(query.toLowerCase()));
-  const tabs = [['overview', 'Overview'], ['mentors', 'Mentor roster'], ['fees', 'Fee ledger'], ['faculty', 'Faculty'], ['transactions', 'Transactions']];
-  return <div id="overview"><PageHeading eyebrow="ADMINISTRATION" title="Institution overview" detail="Fee collection, student relationships, and faculty operations." action={<button className="button outline" onClick={load}><RefreshCw size={15} />Refresh</button>} /><LoadState error={error} retry={load} />{notice && <div className="notice success"><Check size={16} />{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}<div className="metrics-row four"><Metric label="Enrolled students" value={stats.totalStudents ?? '—'} note={`${stats.assignedStudentsCount ?? 0} assigned to a mentor`} icon={GraduationCap} /><Metric label="Faculty mentors" value={stats.totalTeachers ?? '—'} note="Active faculty accounts" icon={Users} tone="green" /><Metric label="Fees collected" value={money(stats.totalFeesCollected)} note={`${stats.totalTransactions ?? 0} transactions`} icon={BadgeIndianRupee} tone="amber" /><Metric label="Outstanding" value={money(stats.totalOutstandingFees)} note={`${stats.recoveryRate ?? 0}% recovery`} icon={WalletCards} tone="ink" /></div><div className="recovery-line"><div><span className="eyebrow">CAMPUS RECOVERY</span><strong>{stats.recoveryRate ?? 0}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(Number(stats.recoveryRate) || 0, 100)}%` }} /></div><span>{money(stats.totalFeesCollected)} collected of {money(stats.totalBilled)} billed</span></div><div className="tabs" role="tablist">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'tab active' : 'tab'} onClick={() => { setTab(id); setQuery(''); }}>{label}</button>)}</div>
+  const tabs = [['overview', 'Overview'], ['students', 'Students'], ['mentors', 'Mentor roster'], ['fees', 'Fee ledger'], ['faculty', 'Faculty'], ['transactions', 'Transactions']];
+  return <div id="overview"><PageHeading eyebrow="ADMINISTRATION" title="Institution overview" detail="Fee collection, student relationships, and faculty operations." action={<button className="button outline" onClick={load}><RefreshCw size={15} />Refresh</button>} /><LoadState error={error} retry={load} />{notice && <div className="notice success"><Check size={16} />{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}<div className="metrics-row four"><Metric label="Enrolled students" value={stats.totalStudents ?? '—'} note={`${stats.assignedStudentsCount ?? 0} assigned to a mentor`} icon={GraduationCap} /><Metric label="Faculty mentors" value={stats.totalTeachers ?? '—'} note="Active faculty accounts" icon={Users} tone="green" /><Metric label="Fees collected" value={money(stats.totalFeesCollected)} note={`${stats.totalTransactions ?? 0} transactions`} icon={BadgeIndianRupee} tone="amber" /><Metric label="Outstanding" value={money(stats.totalOutstandingFees)} note={`${stats.recoveryRate ?? 0}% recovery`} icon={WalletCards} tone="ink" /></div><div className="recovery-line"><div><span className="eyebrow">CAMPUS RECOVERY</span><strong>{stats.recoveryRate ?? 0}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(Number(stats.recoveryRate) || 0, 100)}%` }} /></div><span>{money(stats.totalFeesCollected)} collected of {money(stats.totalBilled)} billed</span></div><div className="tabs" role="tablist">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'tab active' : 'tab'} onClick={() => { setTab(id); setQuery(''); navigateWorkspace(label); }}>{label}</button>)}</div>
     {tab === 'overview' && <section className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">LATEST ACTIVITY</span><h2>Recent transactions</h2></div><span className="count-label">Last 5 records</span></div><TransactionTable records={transactions} /></section>}
+    {tab === 'students' && <><section id="students" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">NEW ENROLMENT</span><h2>Register a student</h2></div><span className="count-label">Initial fee required</span></div><StudentEnrollmentForm endpoint="/student/addstudent" teachers={teachers} onCreated={onStudentCreated} /></section><section className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STUDENT RECORDS</span><h2>Institution directory</h2></div><SearchFilter value={query} onChange={setQuery} /></div><StudentTable students={filteredStudents} /></section></>}
     {tab === 'mentors' && <section id="mentor-roster" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STUDENT-TEACHER LINKS</span><h2>Mentor roster</h2></div><div className="panel-tools"><SearchFilter value={query} onChange={setQuery} /><button className={unassigned ? 'select-button active' : 'select-button'} onClick={() => setUnassigned(!unassigned)}>Unassigned only</button></div></div>{filteredRelationships.length ? <div className="table-wrap"><table><thead><tr><th>Student</th><th>Email</th><th>Balance</th><th>Current mentor</th><th>Assign mentor</th></tr></thead><tbody>{filteredRelationships.map(row => <tr key={row.studentId}><td><strong>{row.studentName}</strong><small className="cell-sub">ID #{row.studentId}</small></td><td>{row.studentEmail}</td><td>{money(row.feeBalance)}</td><td>{row.teacherName || 'Unassigned'}</td><td><select className="table-select" defaultValue={row.teacherId || ''} onChange={event => assign(row.studentId, event.target.value)}><option value="">Unassigned</option>{teachers.map(teacher => <option key={teacher.teacherid} value={teacher.teacherid}>{teacher.teachername}</option>)}</select></td></tr>)}</tbody></table></div> : <Empty>No student relationships match.</Empty>}</section>}
     {tab === 'fees' && <section id="fee-ledger" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">ACCOUNT BALANCES</span><h2>Fee ledger</h2></div><SearchFilter value={query} onChange={setQuery} /></div><StudentTable students={filteredStudents} canEdit onUpdate={saveFee} /></section>}
-    {tab === 'faculty' && <section id="faculty" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STAFF MANAGEMENT</span><h2>Faculty workload</h2></div><span className="count-label">{workload.length} faculty</span></div><div className="table-wrap"><table><thead><tr><th>Faculty</th><th>Contact</th><th>Mentees</th><th className="numeric">Cohort due</th><th /></tr></thead><tbody>{workload.map(teacher => <tr key={teacher.teacherId}><td><strong>{teacher.teacherName}</strong><small className="cell-sub">ID #{teacher.teacherId}</small></td><td>{teacher.email}<small className="cell-sub">{teacher.phone}</small></td><td>{teacher.menteeCount}</td><td className="numeric">{money(teacher.cohortTotalFeePending)}</td><td><button className="text-button danger" onClick={() => deleteTeacher(teacher.teacherId)}>Remove</button></td></tr>)}</tbody></table></div><form className="add-faculty" onSubmit={addTeacher}><div><span className="eyebrow">NEW ACCOUNT</span><h3>Register faculty</h3></div><label>Name<input name="teachername" required /></label><label>Email<input type="email" name="email" required /></label><label>Phone<input type="number" name="phone" required /></label><label>Date of birth<input type="date" name="birthdate" required /></label><button className="button primary">Add faculty <ArrowRight size={15} /></button></form></section>}
+    {tab === 'faculty' && <section id="faculty" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">STAFF MANAGEMENT</span><h2>Faculty workload</h2></div><span className="count-label">{workload.length} faculty</span></div><div className="table-wrap"><table><thead><tr><th>Faculty</th><th>Contact</th><th>Mentees</th><th className="numeric">Cohort due</th><th /></tr></thead><tbody>{workload.map(teacher => <tr key={teacher.teacherId}><td><strong>{teacher.teacherName}</strong><small className="cell-sub">ID #{teacher.teacherId}</small></td><td>{teacher.email}<small className="cell-sub">{teacher.phone}</small></td><td>{teacher.menteeCount}</td><td className="numeric">{money(teacher.cohortTotalFeePending)}</td><td><button className="text-button danger" onClick={() => deleteTeacher(teacher.teacherId)}>Remove</button></td></tr>)}</tbody></table></div><form className="add-faculty" onSubmit={addTeacher}><div><span className="eyebrow">NEW ACCOUNT</span><h3>Register faculty</h3></div><label>Name<input name="teachername" required /></label><label>Email<input type="email" name="email" required /></label><label>Phone<input type="tel" name="phone" autoComplete="tel" required /></label><label>Date of birth<input type="date" name="birthdate" required /></label><button className="button primary">Add faculty <ArrowRight size={15} /></button></form></section>}
     {tab === 'transactions' && <section id="transactions" className="panel data-panel"><div className="section-heading"><div><span className="eyebrow">FINANCIAL AUDIT</span><h2>Recent transactions</h2></div><span className="count-label">Latest 5</span></div><TransactionTable records={transactions} /></section>}
   </div>;
 }

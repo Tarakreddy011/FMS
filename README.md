@@ -29,5 +29,5 @@ npm run build
 ## Main Workflows
 
 - Student: profile, balance, payment, and receipt history.
-- Teacher: assigned cohort, student roster, and fee updates.
-- Principal: dashboard metrics, mentor assignment, fee ledger, faculty management, and transactions.
+- Teacher: assigned cohort, institution roster, student enrollment with an initial fee balance, and fee updates. Students a teacher enrolls are automatically assigned to that teacher.
+- Principal: dashboard metrics, student enrollment with an optional mentor, mentor assignment, fee ledger, faculty management, and transactions. Initial fees are outstanding balances, not payment records.
